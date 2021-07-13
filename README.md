@@ -8,7 +8,7 @@ The master branch will sometimes have changes that are still in the process of b
 
 ### How to build Docker images
 
-Steps to build Standard 5.0 image
+Steps to build Standard 5.0 image.
 
 * Run `git clone https://github.com/aws/aws-codebuild-docker-images.git` to download this repository to your local machine
 * Run `cd ubuntu/standard/5.0` to change the directory in your local workspace. This is the location of the Standard 5.0 Dockerfile with Ubuntu base.
