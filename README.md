@@ -24,7 +24,7 @@ To let the Docker daemon start up in the container, build it and run:
 $ git clone https://github.com/aws/aws-codebuild-docker-images.git
 $ cd aws-codebuild-docker-images
 $ cd ubuntu/standard/5.0
-$ docker build -t aws/codebuild/standard:5.0 .
+$ docker build -t aws/codebuild/standard:5.0 
 $ docker run -it --entrypoint sh aws/codebuild/standard:5.0 -c bash
 ```
 
