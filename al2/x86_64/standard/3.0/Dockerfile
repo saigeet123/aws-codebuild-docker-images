@@ -1,14 +1,3 @@
-# Copyright 2020-2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-# Licensed under the Amazon Software License (the "License"). You may not use this file except in compliance with the License.
-# A copy of the License is located at
-#
-#    http://aws.amazon.com/asl/
-#
-# or in the "license" file accompanying this file.
-# This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, express or implied.
-# See the License for the specific language governing permissions and limitations under the License.
-
 FROM amazonlinux:2 AS core
 
 # Install git, SSH, and other utilities
@@ -57,40 +46,6 @@ RUN set -ex \
    && cd .. ; rm -rf git-$GIT_VERSION \
    && rm -rf $GIT_TAR_FILE /tmp/*
 
-# Install Firefox
-RUN set -ex \
-    && yum install -y gtk3-devel dbus-glib-devel \
-    && wget -nv -O ~/FirefoxSetup.tar.bz2 "https://download.mozilla.org/?product=firefox-latest&os=linux64" \
-    && tar xjf ~/FirefoxSetup.tar.bz2 -C /opt/ \
-    && ln -s /opt/firefox/firefox /usr/local/bin/firefox \
-    && rm ~/FirefoxSetup.tar.bz2 \
-    && firefox --version
-
-# Install GeckoDriver
-RUN set -ex \
-    && curl -s https://api.github.com/repos/mozilla/geckodriver/releases/latest | jq -r '.assets[] | select(.browser_download_url | endswith("linux64.tar.gz")).browser_download_url' | wget -O /tmp/geckodriver-latest-linux64.tar.gz -qi - \
-    && tar -xzf /tmp/geckodriver-latest-linux64.tar.gz -C /opt \
-    && rm /tmp/geckodriver-latest-linux64.tar.gz \
-    && chmod 755 /opt/geckodriver \
-    && ln -s /opt/geckodriver /usr/bin/geckodriver \
-    && geckodriver --version
-
-# Install Chromium
-RUN set -ex \
-    && yum install -y chromium
-
-# Install ChromeDriver
-RUN set -ex \
-    && CHROME_VERSION=`chromium-browser --version | awk -F '[ .]' '{print $2"."$3"."$4}'` \
-    && CHROME_DRIVER_VERSION=`wget -nv -qO- chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION` \
-    && wget -nv -O /tmp/chromedriver_linux64.zip https://chromedriver.storage.googleapis.com/$CHROME_DRIVER_VERSION/chromedriver_linux64.zip \
-    && unzip /tmp/chromedriver_linux64.zip -d /opt \
-    && rm /tmp/chromedriver_linux64.zip \
-    && mv /opt/chromedriver /opt/chromedriver-$CHROME_DRIVER_VERSION \
-    && chmod 755 /opt/chromedriver-$CHROME_DRIVER_VERSION \
-    && ln -s /opt/chromedriver-$CHROME_DRIVER_VERSION /usr/bin/chromedriver \
-    && chromedriver --version
-
 # Install stunnel
 RUN set -ex \
    && STUNNEL_VERSION=5.56 \
@@ -132,31 +87,11 @@ ENV N_SRC_DIR="$SRC_DIR/n"
 RUN git clone https://github.com/tj/n $N_SRC_DIR \
      && cd $N_SRC_DIR && make install
 
-##ruby
-ENV RBENV_SRC_DIR="/usr/local/rbenv"
-
-ENV PATH="/root/.rbenv/shims:$RBENV_SRC_DIR/bin:$RBENV_SRC_DIR/shims:$PATH" \
-    RUBY_BUILD_SRC_DIR="$RBENV_SRC_DIR/plugins/ruby-build"
-
-RUN set -ex \
-    && git clone https://github.com/rbenv/rbenv.git $RBENV_SRC_DIR \
-    && mkdir -p $RBENV_SRC_DIR/plugins \
-    && git clone https://github.com/rbenv/ruby-build.git $RUBY_BUILD_SRC_DIR \
-    && sh $RUBY_BUILD_SRC_DIR/install.sh
 
 ##python
 RUN curl https://pyenv.run | bash
 ENV PATH="/root/.pyenv/shims:/root/.pyenv/bin:$PATH"
 
-##php
-RUN curl -L https://raw.githubusercontent.com/phpenv/phpenv-installer/master/bin/phpenv-installer | bash
-ENV PATH="/root/.phpenv/shims:/root/.phpenv/bin:$PATH"
-
-##go
-RUN git clone https://github.com/syndbg/goenv.git $HOME/.goenv
-ENV PATH="/root/.goenv/shims:/root/.goenv/bin:/go/bin:$PATH"
-ENV GOENV_DISABLE_GOPATH=1
-ENV GOPATH="/go"
 
 #=======================End of layer: tools  =================
 
@@ -204,22 +139,6 @@ RUN set -ex \
     # Ensure Java cacerts symlink points to valid location
     && update-ca-trust
 
-# Install Android SDK manager
-RUN set -x \
-    && wget -nv "https://dl.google.com/android/repository/sdk-tools-linux-${ANDROID_SDK_MANAGER_VER}.zip" -O /tmp/android-sdkmanager.zip \
-    && echo "${ANDROID_SDK_MANAGER_SHA256} /tmp/android-sdkmanager.zip" | sha256sum -c - \
-    && mkdir -p ${ANDROID_HOME} \
-    && unzip /tmp/android-sdkmanager.zip -d ${ANDROID_HOME} \
-    && rm /tmp/android-sdkmanager.zip \
-    && chown -R root.root ${ANDROID_HOME} \
-    && ln -s ${ANDROID_HOME}/tools/android /usr/bin/android
-
-# Install Android
-RUN set -x\
-    && android-accept-licenses.sh "env JAVA_HOME=$JAVA_8_HOME JRE_HOME=$JRE_8_HOME JDK_HOME=$JDK_8_HOME sdkmanager --verbose platform-tools ${ANDROID_SDK_BUILD_TOOLS} ${ANDROID_SDK_PLATFORM_TOOLS} ${ANDROID_SDK_EXTRAS} ${ANDROID_SDK_NDK_TOOLS}" | grep -v '\[=' \
-    && android-accept-licenses.sh "env JAVA_HOME=$JAVA_8_HOME JRE_HOME=$JRE_8_HOME JDK_HOME=$JDK_8_HOME sdkmanager --verbose platform-tools ${ANDROID_SDK_BUILD_TOOLS_28} ${ANDROID_SDK_PLATFORM_TOOLS_28}" | grep -v '\[=' \
-    && android-accept-licenses.sh "env JAVA_HOME=$JAVA_8_HOME JRE_HOME=$JRE_8_HOME JDK_HOME=$JDK_8_HOME sdkmanager --licenses"
-
 RUN set -x \
     # Install Amazon Corretto 11
     # Note: We will use update-alternatives to make sure JDK11 has higher priority for all the tools
@@ -230,12 +149,7 @@ RUN set -x \
           update-alternatives --set $tool $tool_path; \
         done \
      && rm $JAVA_HOME/lib/security/cacerts && ln -s /etc/pki/java/cacerts $JAVA_HOME/lib/security/cacerts \
-    # Install Ant
-    && curl -LSso /var/tmp/apache-ant-$ANT_VERSION-bin.tar.gz https://archive.apache.org/dist/ant/binaries/apache-ant-$ANT_VERSION-bin.tar.gz  \
-    && echo "$ANT_DOWNLOAD_SHA512 /var/tmp/apache-ant-$ANT_VERSION-bin.tar.gz" | sha512sum -c - \
-    && tar -xzf /var/tmp/apache-ant-$ANT_VERSION-bin.tar.gz -C /opt \
-    && rm /var/tmp/apache-ant-$ANT_VERSION-bin.tar.gz \
-    && update-alternatives --install /usr/bin/ant ant /opt/apache-ant-$ANT_VERSION/bin/ant 10000
+
 
 RUN set -ex \
     # Install Maven
@@ -246,24 +160,6 @@ RUN set -ex \
     && rm /var/tmp/apache-maven-$MAVEN_VERSION-bin.tar.gz \
     && update-alternatives --install /usr/bin/mvn mvn /opt/maven/bin/mvn 10000 \
     && mkdir -p $MAVEN_CONFIG_HOME \
-    # Install Gradle
-    && mkdir -p $GRADLE_PATH \
-    && for version in $INSTALLED_GRADLE_VERSIONS; do { \
-       wget -nv "https://services.gradle.org/distributions/gradle-$version-all.zip" -O "$GRADLE_PATH/gradle-$version-all.zip" \
-       && unzip "$GRADLE_PATH/gradle-$version-all.zip" -d /usr/local \
-       && echo -e "$GRADLE_DOWNLOADS_SHA256" | grep "$version" | sed "s|$version|$GRADLE_PATH/gradle-$version-all.zip|" | sha256sum -c - \
-       && rm "$GRADLE_PATH/gradle-$version-all.zip" \
-       && mkdir "/tmp/gradle-$version" \
-       && "/usr/local/gradle-$version/bin/gradle" -p "/tmp/gradle-$version" wrapper \
-       # Android Studio uses the "-all" distribution for it's wrapper script.
-       && perl -pi -e "s/gradle-$version-bin.zip/gradle-$version-all.zip/" "/tmp/gradle-$version/gradle/wrapper/gradle-wrapper.properties" \
-       && "/tmp/gradle-$version/gradlew" -p "/tmp/gradle-$version" init \
-       && rm -rf "/tmp/gradle-$version" \
-       && if [ "$version" != "$GRADLE_VERSION" ]; then rm -rf "/usr/local/gradle-$version"; fi; \
-     }; done \
-    # Install default GRADLE_VERSION to path
-    && ln -s /usr/local/gradle-$GRADLE_VERSION/bin/gradle /usr/bin/gradle \
-    && rm -rf $GRADLE_PATH \
     # Install SBT
     && curl -fSL "https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz" -o sbt.tgz \
     && echo "${SBT_DOWNLOAD_SHA256} *sbt.tgz" | sha256sum -c - \
@@ -308,13 +204,6 @@ RUN  n $NODE_10_VERSION && npm install --save-dev -g -f grunt && npm install --s
 
 #****************      END NODEJS     ****************************************************
 
-#**************** RUBY *********************************************************
-
-ENV RUBY_26_VERSION="2.6.6"
-
-RUN rbenv install $RUBY_26_VERSION; rm -rf /tmp/*; rbenv global $RUBY_26_VERSION;ruby -v
-
-#**************** END RUBY *****************************************************
 
 #**************** PYTHON *****************************************************
 ENV PYTHON_37_VERSION="3.7.10"
@@ -330,31 +219,6 @@ RUN set -ex \
 
 #**************** END PYTHON *****************************************************
 
-#****************      PHP     ****************************************************
-ENV PHP_73_VERSION="7.3.19"
-
-COPY tools/runtime_configs/php/$PHP_73_VERSION /root/.phpenv/plugins/php-build/share/php-build/definitions/$PHP_73_VERSION
-RUN phpenv install $PHP_73_VERSION; rm -rf /tmp/*; phpenv global $PHP_73_VERSION
-RUN echo "memory_limit = 1G;" >> "/root/.phpenv/versions/$PHP_73_VERSION/etc/conf.d/memory.ini"
-
-# Install Composer globally
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin --filename=composer
-#****************      END PHP     ****************************************************
-
-#****************     GOLANG     ****************************************************
-ENV GOLANG_13_VERSION="1.13.15" \
-    GOLANG_12_VERSION="1.12.17"
-
-ENV GOENV_DISABLE_GOPATH=1
-ENV GOPATH="/go"
-
-RUN goenv install $GOLANG_12_VERSION; rm -rf /tmp/*
-
-RUN goenv install $GOLANG_13_VERSION; rm -rf /tmp/*; \
-    goenv global  $GOLANG_13_VERSION
-
-RUN go get -u github.com/golang/dep/cmd/dep
-#****************      END GOLANG     ****************************************************
 
 #=======================End of layer: runtimes_1  =================
 FROM runtimes_1 AS runtimes_2
@@ -430,24 +294,6 @@ RUN set -ex \
     && dotnet tool install --global GitVersion.Tool --version $GITVERSION_VERSION \
     && ln -s ~/.dotnet/tools/dotnet-gitversion /usr/local/bin/gitversion
 
-#Ruby 2.7
-ENV RUBY_27_VERSION="2.7.2"
-RUN rbenv install $RUBY_27_VERSION; rm -rf /tmp/*; rbenv global $RUBY_27_VERSION;ruby -v
-
-#Golang 14
-ENV GOLANG_14_VERSION="1.14.12"
-RUN goenv install $GOLANG_14_VERSION; rm -rf /tmp/*; \
-    goenv global  $GOLANG_14_VERSION
-
-#Php 7.4
-ENV PHP_74_VERSION="7.4.7"
-COPY tools/runtime_configs/php/$PHP_74_VERSION /root/.phpenv/plugins/php-build/share/php-build/definitions/$PHP_74_VERSION
-RUN phpenv install $PHP_74_VERSION; rm -rf /tmp/*; phpenv global $PHP_74_VERSION
-RUN echo "memory_limit = 1G;" >> "/root/.phpenv/versions/$PHP_74_VERSION/etc/conf.d/memory.ini"
-
-# Install Composer globally
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin --filename=composer
-#****************      END PHP     ****************************************************
 
 #===================END of runtimes_3 ==============
 FROM runtimes_3 AS al2_v3
@@ -463,4 +309,3 @@ COPY amazon-ssm-agent.json          /etc/amazon/ssm/
 ENTRYPOINT ["dockerd-entrypoint.sh"]
 
 #=======================End of layer: al2_v3  =================
-
